@@ -30,8 +30,15 @@ Cette application Flask permet d'uploader une photo et d'envoyer un prompt via u
 1. Lancer le serveur Flask :
    
    ```bash
-   python app.py
+   source .venv/bin/activate
+   python flask_ticket/app.py
    ```
+
+   ```powershell
+   venv\Scripts\activate 
+   python flask_ticket/app.py
+   ```
+
 2. Ouvrir votre navigateur à l'adresse : http://localhost:5000
 3. Sélectionner le serveur, le modèle, ajouter un prompt si besoin, et uploader une image.
 4. Cliquer sur "Analyser" pour obtenir le résultat JSON.

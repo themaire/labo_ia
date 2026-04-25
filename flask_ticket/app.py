@@ -1,8 +1,53 @@
+@app.route('/upload_ticket', methods=['POST'])
+def upload_ticket():
+    # Récupère l'image envoyée (champ 'image' en binaire ou base64)
+    if 'image' in request.files:
+        file = request.files['image']
+        image_bytes = file.read()
+        filename = file.filename
+    else:
+        # Supporte aussi l'envoi en base64 (JSON)
+        data = request.get_json()
+        img_b64 = data.get('image', '')
+        filename = data.get('filename', None)
+        if not img_b64:
+            return jsonify({'error': 'Aucune image reçue'}), 400
+        image_bytes = base64.b64decode(img_b64)
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO tickets (image, is_processed, filename)
+            VALUES (%s, %s, %s)
+            RETURNING id, created_at;
+        ''', (psycopg2.Binary(image_bytes), False, filename))
+        ticket_id, created_at = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'success': True, 'ticket_id': ticket_id, 'created_at': str(created_at)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 from flask import Flask, request, render_template_string, jsonify
 import requests as req
 import os
 
+
 import base64
+from dotenv import load_dotenv
+import psycopg2
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+# Connexion PostgreSQL
+def get_db_connection():
+    conn = psycopg2.connect(
+        host=os.environ.get('POSTGRES_HOST'),
+        user=os.environ.get('POSTGRES_USER'),
+        password=os.environ.get('POSTGRES_PASSWORD'),
+        dbname=os.environ.get('POSTGRES_DB'),
+        options=f"-c search_path={os.environ.get('POSTGRES_SCHEMA','public')}"
+    )
+    return conn
 
 app = Flask(__name__)
 
