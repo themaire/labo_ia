@@ -130,9 +130,9 @@ def api_ollama():
     ollama_url = get_ollama_url(server_ip)
     try:
         t0 = time.time()
-        response = req.post(ollama_url, json=payload, headers=headers, timeout=300)
+        response = req.post(ollama_url, json=payload, headers=headers, timeout=400)
         t1 = time.time()
-        response.raise_for_status()
+        response.raise_for_status() 
         raw = response.text
         assembled = assemble_ollama_response(raw)
         elapsed = t1 - t0

@@ -26,14 +26,40 @@
 <script>
 function togglePrompt() {
     var select = document.getElementById('model');
-    var needPrompt = select.options[select.selectedIndex].getAttribute('data-needprompt') === 'true';
-    document.getElementById('promptDiv').style.display = needPrompt ? 'block' : 'none';
+    if (!select.options.length) {
+        document.getElementById('promptDiv').style.display = 'none';
+        return;
+    }
+    var opt = select.options[select.selectedIndex];
+    var needPrompt = opt.getAttribute('data-needprompt') === 'true';
+    var imageRequired = opt.getAttribute('data-imagerequired') === 'true';
+    // Si le modèle n'a pas d'attributs (valeurs par défaut), on force prompt visible et image non obligatoire
+    if (
+        (opt.getAttribute('data-needprompt') === 'false' && opt.getAttribute('data-imagerequired') === 'false') &&
+        opt.textContent === opt.value
+    ) {
+        document.getElementById('promptDiv').style.display = 'block';
+    } else {
+        document.getElementById('promptDiv').style.display = needPrompt ? 'block' : 'none';
+    }
 }
 function toggleImageRequired() {
     var select = document.getElementById('model');
-    var imageRequired = select.options[select.selectedIndex].getAttribute('data-imagerequired') === 'true';
-    var ticketInput = document.getElementById('ticketInput');
-    ticketInput.required = imageRequired;
+    if (!select.options.length) {
+        document.getElementById('ticketInput').required = false;
+        return;
+    }
+    var opt = select.options[select.selectedIndex];
+    var imageRequired = opt.getAttribute('data-imagerequired') === 'true';
+    // Si le modèle n'a pas d'attributs (valeurs par défaut), image jamais obligatoire
+    if (
+        (opt.getAttribute('data-needprompt') === 'false' && opt.getAttribute('data-imagerequired') === 'false') &&
+        opt.textContent === opt.value
+    ) {
+        document.getElementById('ticketInput').required = false;
+    } else {
+        document.getElementById('ticketInput').required = imageRequired;
+    }
 }
 // Nouvelle fonction pour charger dynamiquement les modèles
 document.getElementById('server').onchange = async function() {
