@@ -1,166 +1,93 @@
 from flask import Flask, request, render_template_string, jsonify
 import requests as req
 import os
+
 import base64
 
 app = Flask(__name__)
 
 
 # Liste des serveurs : (nom affiché, IP)
+
+# Ajout d'un serveur factice pour forcer la sélection
 OLLAMA_SERVERS = [
+    ("Sélectionnez un serveur", "")
+]
+OLLAMA_SERVERS += [
     ("Raspberry Pi 5", "192.168.1.52"),
     ("Serveur Ollama", "192.168.1.18")
 ]
 
-# Par défaut, utiliser le premier serveur
-DEFAULT_SERVER_IP = OLLAMA_SERVERS[0][1]
+# Par défaut, aucun serveur sélectionné (valeur vide)
+DEFAULT_SERVER_IP = ""
 OLLAMA_PORT = 11434
 OLLAMA_API_PATH = "/api/generate"
 def get_ollama_url(ip):
     return f"http://{ip}:{OLLAMA_PORT}{OLLAMA_API_PATH}"
-# Liste des modèles : (nom interne, affichage, besoin_prompt)
+# Liste des modèles : paramètres : (nom interne, affichage, besoin_prompt)
 OLLAMA_MODELS = [
     ("ticket_carburant:latest", "Ticket Carburant (pas de prompt, image obligatoire)", False, True),
-    ("gemma4:e4b", "Gemma4 (prompt requis, image optionnelle)", True, False)
+    ("gemma3:4b", "Gemma3-4b (prompt requis, image optionnelle)", True, False),
+    ("gemma4:e2b", "Gemma4-e2b (prompt requis, image optionnelle)", True, False),
+    ("gemma4:e4b", "Gemma4-e4b (prompt requis, image optionnelle)", True, False)
 ]
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-HTML_FORM = '''
-<!doctype html>
-<title>Labo_IA</title>
-<h2>Laboratoire IA local</h2>
-<form enctype=multipart/form-data id="formulaire">
-    <label for="server">Choisir le serveur :</label>
-    <select name="server" id="server">
-        {% for name, ip in servers %}
-            <option value="{{ ip }}" {% if ip == selected_server %}selected{% endif %}>{{ name }} ({{ ip }})</option>
-        {% endfor %}
-    </select><br><br>
-    <label for="model">Choisir le modèle :</label>
-    <select name="model" id="model" onchange="togglePrompt();toggleImageRequired();">
-        {% for value, label, need_prompt, image_required in models %}
-            <option value="{{ value }}" data-needprompt="{{ 'true' if need_prompt else 'false' }}" data-imagerequired="{{ 'true' if image_required else 'false' }}" {% if value == selected_model %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select><br><br>
-    <div id="promptDiv" style="display: {% if need_prompt %}block{% else %}none{% endif %};">
-        <label for="prompt">Prompt :</label>
-        <input type="text" name="prompt" id="prompt" value="{{ prompt|default('') }}" style="width:400px;">
-    </div><br>
-    <input type=file name=ticket id="ticketInput" accept="image/*"><br><br>
-    <input type=submit value=Analyser>
-</form>
-<div id="waitMsg" style="display:none; color:blue; font-weight:bold;">Veuillez patienter, traitement en cours...</div>
-<div id="resultDiv"></div>
-<script>
-function togglePrompt() {
-    var select = document.getElementById('model');
-    var needPrompt = select.options[select.selectedIndex].getAttribute('data-needprompt') === 'true';
-    document.getElementById('promptDiv').style.display = needPrompt ? 'block' : 'none';
-}
-function toggleImageRequired() {
-    var select = document.getElementById('model');
-    var imageRequired = select.options[select.selectedIndex].getAttribute('data-imagerequired') === 'true';
-    var ticketInput = document.getElementById('ticketInput');
-    ticketInput.required = imageRequired;
-}
-window.onload = function() {
-    togglePrompt();
-    toggleImageRequired();
-    document.getElementById('waitMsg').style.display = 'none';
-    document.getElementById('resultDiv').innerHTML = '';
-};
-document.getElementById('formulaire').onsubmit = async function(e) {
-    e.preventDefault();
-    document.getElementById('waitMsg').style.display = 'block';
-    document.getElementById('resultDiv').innerHTML = '';
-    const form = document.getElementById('formulaire');
-    const formData = new FormData(form);
-    // Construction du payload côté JS (comme côté Flask)
-    const model = formData.get('model');
-    const prompt = formData.get('prompt') || "";
-    const file = formData.get('ticket');
-    const server = formData.get('server');
-    // Vérifie si l'image est obligatoire pour le modèle sélectionné
-    var select = document.getElementById('model');
-    var imageRequired = select.options[select.selectedIndex].getAttribute('data-imagerequired') === 'true';
-    if (imageRequired && (!file || !file.name)) {
-        document.getElementById('waitMsg').style.display = 'none';
-        document.getElementById('resultDiv').innerHTML = '<span style="color:red">Veuillez sélectionner une image (obligatoire pour ce modèle).</span>';
-        return;
-    }
-    // Lecture du fichier image en base64
-    const reader = new FileReader();
-    reader.onload = async function() {
-        const img_b64 = reader.result.split(',')[1];
-        const payload = {
-            model: model,
-            prompt: prompt,
-            image: img_b64,
-            server: server
-        };
-        try {
-            const response = await fetch("/api_ollama", {
-                method: "POST",
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const text = await response.text();
-            document.getElementById('waitMsg').style.display = 'none';
-            document.getElementById('resultDiv').innerHTML = '<h3>Résultat JSON :</h3><pre>' + text + '</pre>';
-        } catch (err) {
-            document.getElementById('waitMsg').style.display = 'none';
-            document.getElementById('resultDiv').innerHTML = '<span style="color:red">Erreur lors de la requête.</span>';
-        }
-    };
-    if (file && file.name) {
-        reader.readAsDataURL(file);
-    } else {
-        // Pas d'image, mais image optionnelle (ex: Gemma)
-        const payload = {
-            model: model,
-            prompt: prompt,
-            image: "",
-            server: server
-        };
-        try {
-            const response = await fetch("/api_ollama", {
-                method: "POST",
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const text = await response.text();
-            document.getElementById('waitMsg').style.display = 'none';
-            document.getElementById('resultDiv').innerHTML = '<h3>Résultat JSON :</h3><pre>' + text + '</pre>';
-        } catch (err) {
-            document.getElementById('waitMsg').style.display = 'none';
-            document.getElementById('resultDiv').innerHTML = '<span style="color:red">Erreur lors de la requête.</span>';
-        }
-    }
-};
-</script>
-'''
-
-
 
 # Page principale (GET seulement)
+from flask import render_template
+
 @app.route('/', methods=['GET'])
 def index():
-    selected_model = OLLAMA_MODELS[0][0]
-    need_prompt = OLLAMA_MODELS[0][2]
-    prompt = ""
+    # Si aucun serveur sélectionné, la liste des modèles est vide
     selected_server = DEFAULT_SERVER_IP
-    return render_template_string(
-        HTML_FORM,
+    if selected_server:
+        models = OLLAMA_MODELS
+        selected_model = OLLAMA_MODELS[0][0]
+        need_prompt = OLLAMA_MODELS[0][2]
+    else:
+        models = []
+        selected_model = ""
+        need_prompt = False
+    prompt = ""
+    return render_template(
+        "index.html",
         result=None,
-        models=OLLAMA_MODELS,
+        models=models,
         selected_model=selected_model,
         need_prompt=need_prompt,
         prompt=prompt,
         servers=OLLAMA_SERVERS,
         selected_server=selected_server
     )
+
+# Endpoint pour lister dynamiquement les modèles d'un serveur Ollama
+@app.route('/api_list_models', methods=['POST'])
+def api_list_models():
+    data = request.get_json()
+    server_ip = data.get('server_ip', DEFAULT_SERVER_IP)
+    try:
+        url = f"http://{server_ip}:{OLLAMA_PORT}/api/tags"
+        r = req.get(url, timeout=10)
+        r.raise_for_status()
+        tags = r.json().get('models', [])
+        # On superpose la logique métier de OLLAMA_MODELS si le nom correspond
+        models = []
+        for tag in tags:
+            name = tag['name']
+            # Cherche dans OLLAMA_MODELS un tuple dont le nom interne correspond
+            found = next((m for m in OLLAMA_MODELS if m[0] == name), None)
+            if found:
+                # Utilise le libellé, besoin_prompt, image_obligatoire définis dans OLLAMA_MODELS
+                models.append((found[0], found[1], found[2], found[3]))
+            else:
+                # Sinon, valeurs par défaut (nom, nom, False, False)
+                models.append((name, name, False, False))
+        return jsonify(models)
+    except Exception as e:
+        return jsonify([]), 500
 
 
 # Fonction pour reconstituer le texte à partir des lignes JSON

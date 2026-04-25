@@ -1,0 +1,165 @@
+<!doctype html>
+<title>Labo_IA</title>
+<h2>Laboratoire IA local</h2>
+<form enctype=multipart/form-data id="formulaire">
+    <label for="server">Choisir le serveur :</label>
+    <select name="server" id="server">
+        {% for name, ip in servers %}
+            <option value="{{ ip }}" {% if ip == selected_server %}selected{% endif %}>{{ name }} ({{ ip }})</option>
+        {% endfor %}
+    </select><br><br>
+    <label for="model">Choisir le modèle :</label>
+    <select name="model" id="model" onchange="togglePrompt();toggleImageRequired();" disabled>
+        {% for value, label, need_prompt, image_required in models %}
+            <option value="{{ value }}" data-needprompt="{{ 'true' if need_prompt else 'false' }}" data-imagerequired="{{ 'true' if image_required else 'false' }}" {% if value == selected_model %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select><br><br>
+    <div id="promptDiv" style="display: {% if need_prompt %}block{% else %}none{% endif %};">
+        <label for="prompt">Prompt :</label>
+        <textarea name="prompt" id="prompt" style="width:600px;" rows="4">{{ prompt|default('') }}</textarea>
+    </div><br>
+    <input type=file name=ticket id="ticketInput" accept="image/*"><br><br>
+    <input type=submit value=Analyser id="submitBtn" disabled>
+</form>
+<div id="waitMsg" style="display:none; color:blue; font-weight:bold;">Veuillez patienter, traitement en cours...</div>
+<div id="resultDiv"></div>
+<script>
+function togglePrompt() {
+    var select = document.getElementById('model');
+    var needPrompt = select.options[select.selectedIndex].getAttribute('data-needprompt') === 'true';
+    document.getElementById('promptDiv').style.display = needPrompt ? 'block' : 'none';
+}
+function toggleImageRequired() {
+    var select = document.getElementById('model');
+    var imageRequired = select.options[select.selectedIndex].getAttribute('data-imagerequired') === 'true';
+    var ticketInput = document.getElementById('ticketInput');
+    ticketInput.required = imageRequired;
+}
+// Nouvelle fonction pour charger dynamiquement les modèles
+document.getElementById('server').onchange = async function() {
+    const server_ip = this.value;
+    const modelSelect = document.getElementById('model');
+    const submitBtn = document.getElementById('submitBtn');
+    if (!server_ip) {
+        modelSelect.innerHTML = '';
+        modelSelect.disabled = true;
+        submitBtn.disabled = true;
+        togglePrompt();
+        toggleImageRequired();
+        return;
+    }
+    try {
+        const response = await fetch('/api_list_models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ server_ip: server_ip })
+        });
+        if (!response.ok) throw new Error('Erreur API');
+        const models = await response.json();
+        modelSelect.innerHTML = '';
+        for (const [value, label, need_prompt, image_required] of models) {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            opt.setAttribute('data-needprompt', need_prompt ? 'true' : 'false');
+            opt.setAttribute('data-imagerequired', image_required ? 'true' : 'false');
+            modelSelect.appendChild(opt);
+        }
+        modelSelect.disabled = false;
+        submitBtn.disabled = false;
+        togglePrompt();
+        toggleImageRequired();
+    } catch (e) {
+        modelSelect.innerHTML = '';
+        modelSelect.disabled = true;
+        submitBtn.disabled = true;
+        alert('Impossible de charger la liste des modèles pour ce serveur.');
+    }
+};
+window.onload = function() {
+    const serverSelect = document.getElementById('server');
+    const modelSelect = document.getElementById('model');
+    const submitBtn = document.getElementById('submitBtn');
+    if (!serverSelect.value) {
+        modelSelect.innerHTML = '';
+        modelSelect.disabled = true;
+        submitBtn.disabled = true;
+    }
+    togglePrompt();
+    toggleImageRequired();
+    document.getElementById('waitMsg').style.display = 'none';
+    document.getElementById('resultDiv').innerHTML = '';
+};
+document.getElementById('formulaire').onsubmit = async function(e) {
+    e.preventDefault();
+    const server = document.getElementById('server').value;
+    if (!server) {
+        alert('Veuillez sélectionner un serveur.');
+        return;
+    }
+    document.getElementById('waitMsg').style.display = 'block';
+    document.getElementById('resultDiv').innerHTML = '';
+    const form = document.getElementById('formulaire');
+    const formData = new FormData(form);
+    // Construction du payload côté JS (comme côté Flask)
+    const model = formData.get('model');
+    const prompt = formData.get('prompt') || "";
+    const file = formData.get('ticket');
+    // Vérifie si l'image est obligatoire pour le modèle sélectionné
+    var select = document.getElementById('model');
+    var imageRequired = select.options[select.selectedIndex].getAttribute('data-imagerequired') === 'true';
+    if (imageRequired && (!file || !file.name)) {
+        document.getElementById('waitMsg').style.display = 'none';
+        document.getElementById('resultDiv').innerHTML = '<span style="color:red">Veuillez sélectionner une image (obligatoire pour ce modèle).</span>';
+        return;
+    }
+    // Lecture du fichier image en base64
+    const reader = new FileReader();
+    reader.onload = async function() {
+        const img_b64 = reader.result.split(',')[1];
+        const payload = {
+            model: model,
+            prompt: prompt,
+            image: img_b64,
+            server: server
+        };
+        try {
+            const response = await fetch("/api_ollama", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const text = await response.text();
+            document.getElementById('waitMsg').style.display = 'none';
+            document.getElementById('resultDiv').innerHTML = '<h3>Résultat JSON :</h3><pre>' + text + '</pre>';
+        } catch (err) {
+            document.getElementById('waitMsg').style.display = 'none';
+            document.getElementById('resultDiv').innerHTML = '<span style=\"color:red\">Erreur lors de la requête.</span>';
+        }
+    };
+    if (file && file.name) {
+        reader.readAsDataURL(file);
+    } else {
+        // Pas d'image, mais image optionnelle (ex: Gemma)
+        const payload = {
+            model: model,
+            prompt: prompt,
+            image: "",
+            server: server
+        };
+        try {
+            const response = await fetch("/api_ollama", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const text = await response.text();
+            document.getElementById('waitMsg').style.display = 'none';
+            document.getElementById('resultDiv').innerHTML = '<h3>Résultat JSON :</h3><pre>' + text + '</pre>';
+        } catch (err) {
+            document.getElementById('waitMsg').style.display = 'none';
+            document.getElementById('resultDiv').innerHTML = '<span style=\"color:red\">Erreur lors de la requête.</span>';
+        }
+    }
+};
+</script>
