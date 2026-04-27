@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta http-equiv="Content-Language" content="fr">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historique des prompts IA</title>
+<style>
+body { font-family: sans-serif; margin: 1em; }
+.header { display: flex; gap: 1em; align-items: center; margin-bottom: 1em; }
+.header a { text-decoration: none; color: #1976d2; font-weight: bold; font-size: 1.1em; }
+@media (max-width: 700px) {
+  .table-hist { font-size: 0.95em; }
+}
+.table-hist { width: 100%; border-collapse: collapse; margin-bottom: 2em; }
+.table-hist th, .table-hist td { border-bottom: 1px solid #ccc; padding: 0.5em 0.3em; text-align: left; }
+.table-hist th { background: #f5f5f5; }
+.accordion-row { cursor: pointer; background: #f9f9f9; transition: background 0.2s; }
+.accordion-row:hover { background: #e3f2fd; }
+.detail-row { display: none; background: #f1f8e9; }
+@media (min-width: 900px) {
+  .table-hist { font-size: 1.1em; }
+}
+</style>
+</head>
+<body>
+<div class="header">
+    <a href="/">🏠 Accueil</a>
+    <a href="/ask">🧠 IA</a>
+    <a href="/upload_ticket">📷 Envoyer</a>
+    <a href="/check_tickets">📋 Tickets</a>
+</div>
+<h2>Historique des prompts IA</h2>
+<table class="table-hist" id="histTable">
+<thead>
+<tr>
+  <th>Date</th>
+  <th>Modèle</th>
+  <th>Serveur</th>
+  <th>Durée (s)</th>
+  <th>Prompt</th>
+  <th></th>
+</tr>
+</thead>
+<tbody id="histBody">
+<!-- Lignes JS -->
+</tbody>
+</table>
+<script>
+async function loadHistory() {
+  const resp = await fetch('/api_history_list');
+  const data = await resp.json();
+  const body = document.getElementById('histBody');
+  body.innerHTML = '';
+  for (const row of data) {
+    const tr = document.createElement('tr');
+    tr.className = 'accordion-row';
+      // Génère l'URL de rechargement avec tous les champs utiles
+      const params = new URLSearchParams({
+        server: row.server_ip || '',
+        model: row.model || '',
+        prompt: row.prompt || '',
+        options: row.options ? (typeof row.options === 'string' ? row.options : JSON.stringify(row.options)) : ''
+      });
+      const reloadUrl = `/ask?${params.toString()}`;
+      tr.innerHTML = `<td>${row.created_at}</td><td>${row.model}</td><td>${row.server_ip||''}</td><td>${row.duration_seconds||''}</td><td>${(row.prompt||'').slice(0,40)}${row.prompt&&row.prompt.length>40?'...':''}</td><td><button onclick='copyTest(${row.id}, event)' title='Copier les détails' style='background:none;border:none;color:#1976d2;font-size:1.3em;cursor:pointer;margin-right:0.5em;'>📋</button><button onclick='deleteTest(${row.id}, event)' title='Supprimer' style='background:none;border:none;color:#e53935;font-size:1.3em;cursor:pointer;margin-right:0.5em;'>🗑️</button><a href="${reloadUrl}" target="_blank" title="Recharger dans /ask" style="text-decoration:none;font-size:1.3em;color:#388e3c;">↩️</a></td>`;
+    tr.onclick = async function(e) {
+      if (e.target.tagName === 'BUTTON') return; // Ne pas ouvrir la modale si clic sur corbeille
+      document.getElementById('modalBg').style.display = 'flex';
+      document.getElementById('modalDetail').innerHTML = '<em>Chargement...</em>';
+      const detailResp = await fetch(`/api_history_detail/${row.id}`);
+      const detail = await detailResp.json();
+      let html = `<b>Résultat :</b> <pre>${detail.result||''}</pre>`;
+      html += `<b>Durée :</b> ${detail.duration_seconds||'-'} s<br>`;
+      html += `<b>Date début :</b> ${detail.created_at}<br>`;
+      html += `<b>Date fin :</b> ${detail.finished_at||'-'}<br>`;
+      html += `<b>Modèle :</b> ${detail.model}<br>`;
+      html += `<b>Serveur :</b> ${detail.server_ip||'-'}<br>`;
+      html += `<b>Prompt :</b> <pre>${detail.prompt||''}</pre>`;
+      html += `<b>Options :</b> <pre>${detail.options?JSON.stringify(detail.options,null,2):''}</pre>`;
+      if (detail.image_base64) {
+        // Ajout d'un conteneur pour afficher les dimensions après chargement
+        html += `<b>Image :</b><br><span id='imgDims' style='font-size:0.95em;color:#555;'></span><br>`;
+        html += `<img id='modalImg' src=\"data:image/png;base64,${detail.image_base64}\" style=\"max-width:300px;max-height:200px;display:block;margin-bottom:1em;cursor:zoom-in;\" title='Cliquez pour agrandir' /><br>`;
+      }
+      if (detail.error) html += `<b style='color:red'>Erreur :</b> <pre>${detail.error}</pre>`;
+      document.getElementById('modalDetail').innerHTML = html;
+      // Affichage dimensions et gestion zoom
+      if (detail.image_base64) {
+        const img = document.getElementById('modalImg');
+        img.onload = function() {
+          document.getElementById('imgDims').textContent = `Dimensions : ${img.naturalWidth} x ${img.naturalHeight} px`;
+        };
+        img.onclick = function() {
+          showFullImage(img.src, img.naturalWidth, img.naturalHeight);
+        };
+      }
+    };
+    // ...existing code...
+    // (suppression du bloc orphelin)
+
+    body.appendChild(tr);
+  }
+}
+
+
+function deleteTest(id, event) {
+  event.stopPropagation();
+  if (!confirm('Supprimer ce test ?')) return;
+  fetch(`/api_history_delete/${id}`, { method: 'DELETE' })
+    .then(resp => {
+      if (resp.ok) loadHistory();
+      else alert('Erreur lors de la suppression');
+    });
+}
+
+window.onload = loadHistory;
+// Modale pour détail
+document.body.insertAdjacentHTML('beforeend', `
+<div class="modal-bg" id="modalBg" style="display:none;position:fixed;z-index:1000;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);align-items:center;justify-content:center;">
+  <div class="modal-content" id="modalContent" style="background:#fff;border-radius:1em;max-width:95vw;max-height:90vh;overflow:auto;padding:2em;box-shadow:0 4px 32px #0005;">
+    <span class="close-btn" onclick="closeModal()" style="float:right;font-size:1.5em;color:#1976d2;cursor:pointer;margin-left:1em;">&times;</span>
+    <div id="modalDetail">Chargement...</div>
+  </div>
+</div>`);
+function closeModal() {
+  document.getElementById('modalBg').style.display = 'none';
+}
+document.getElementById('modalBg').onclick = function(e) {
+  if (e.target === this) closeModal();
+};
+// Fonction globale pour copier les détails d'un test
+async function copyTest(id, event) {
+  event.stopPropagation();
+  try {
+    const resp = await fetch(`/api_history_detail/${id}`);
+    if (!resp.ok) throw new Error('Erreur API');
+    const d = await resp.json();
+    let txt = '';
+    txt += `Modèle : ${d.model}\n`;
+    txt += `Serveur : ${d.server_ip||'-'}\n`;
+    txt += `Date début : ${d.created_at}\n`;
+    txt += `Date fin : ${d.finished_at||'-'}\n`;
+    txt += `Durée : ${d.duration_seconds||'-'} s\n`;
+    txt += `Prompt :\n${d.prompt||''}\n`;
+    txt += `Options :\n${d.options?JSON.stringify(d.options,null,2):''}\n`;
+    txt += `Résultat :\n${d.result||''}\n`;
+    if (d.error) txt += `Erreur :\n${d.error}\n`;
+    await navigator.clipboard.writeText(txt);
+    alert('Détails copiés dans le presse-papier !');
+  } catch (e) {
+    alert('Erreur lors de la copie');
+  }
+}
+
+// Fonction globale pour afficher l'image en grand dans une modale
+function showFullImage(src, w, h) {
+  // Crée une modale dédiée si elle n'existe pas
+  let modal = document.getElementById('imgModalBg');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'imgModalBg';
+    modal.style = 'display:flex;position:fixed;z-index:2000;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;';
+    modal.innerHTML = `<div style='background:#fff;border-radius:1em;max-width:98vw;max-height:98vh;overflow:auto;padding:1em;box-shadow:0 4px 32px #0008;position:relative;'>
+      <span onclick='closeImgModal()' style='position:absolute;top:0.5em;right:1em;font-size:2em;color:#1976d2;cursor:pointer;'>&times;</span>
+      <img id='imgModalImg' src='' style='display:block;max-width:90vw;max-height:90vh;margin:auto;border-radius:0.5em;box-shadow:0 2px 16px #0005;'>
+      <div id='imgModalDims' style='text-align:center;color:#555;font-size:1em;margin-top:0.5em;'></div>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  const img = document.getElementById('imgModalImg');
+  img.src = src;
+  img.style.maxWidth = '90vw';
+  img.style.maxHeight = '90vh';
+  img.dataset.zoom = 'fit';
+  img.onclick = function(e) {
+    // Toggle zoom 100%/fit
+    if (img.dataset.zoom === 'fit') {
+      img.style.maxWidth = 'none';
+      img.style.maxHeight = 'none';
+      img.style.width = w + 'px';
+      img.style.height = h + 'px';
+      img.dataset.zoom = 'full';
+      document.getElementById('imgModalDims').textContent = `Dimensions : ${w} x ${h} px (100%)`;
+    } else {
+      img.style.maxWidth = '90vw';
+      img.style.maxHeight = '90vh';
+      img.style.width = '';
+      img.style.height = '';
+      img.dataset.zoom = 'fit';
+      document.getElementById('imgModalDims').textContent = `Dimensions : ${w} x ${h} px`;
+    }
+    e.stopPropagation();
+  };
+  document.getElementById('imgModalDims').textContent = `Dimensions : ${w} x ${h} px`;
+  modal.style.display = 'flex';
+  // Fermer la modale si clic hors image
+  modal.onclick = function(e) {
+    if (e.target === modal) closeImgModal();
+  };
+}
+
+function closeImgModal() {
+  let modal = document.getElementById('imgModalBg');
+  if (modal) modal.style.display = 'none';
+}
+</script>
+</body>
+</html>
