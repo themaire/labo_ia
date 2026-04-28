@@ -63,6 +63,7 @@ def get_ollama_url(ip):
 # Liste des modèles : paramètres : (nom interne, affichage, besoin_prompt)
 OLLAMA_MODELS = [
     ("ticket_carburant:latest", "Ticket Carburant (pas de prompt, image obligatoire)", False, True),
+    ("ti_carbu_gemma4_e4b:latest", "Ticket Carburant gemma4:e4b (pas de prompt, image obligatoire)", False, True),
     ("gemma3:4b", "Gemma3-4b (prompt requis, image optionnelle)", True, False),
     ("gemma4:e2b", "Gemma4-e2b (prompt requis, image optionnelle)", True, False),
     ("gemma4:e4b", "Gemma4-e4b (prompt requis, image optionnelle)", True, False)
@@ -576,10 +577,20 @@ def upload_ticket():
         '''
     # POST : logique d'enregistrement existante
     ticket_type = request.form.get('type') if request.form else None
+    import numpy as np
+    import cv2
+    from flask_ticket.image_utils import preprocess as img_preprocess
     if 'image' in request.files:
         file = request.files['image']
         image_bytes = file.read()
         filename = file.filename
+        # Prétraitement par défaut
+        arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        processed = img_preprocess(img)
+        # Ré-encodage JPEG qualité 80 (déjà fait dans preprocess, mais on s'assure du format)
+        _, buf = cv2.imencode('.jpg', processed, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        image_bytes = buf.tobytes()
     else:
         data = request.get_json()
         img_b64 = data.get('image', '')
@@ -588,6 +599,12 @@ def upload_ticket():
         if not img_b64:
             return jsonify({'error': 'Aucune image reçue'}), 400
         image_bytes = base64.b64decode(img_b64)
+        # Prétraitement par défaut
+        arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        processed = img_preprocess(img)
+        _, buf = cv2.imencode('.jpg', processed, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        image_bytes = buf.tobytes()
 
     # Vérification doublon (nom + taille)
     try:
@@ -645,6 +662,7 @@ def upload_ticket():
     except Exception as e:
         return f"<html><body><h2>Erreur</h2><p>{str(e)}</p></body></html>", 500
 # Route pour traiter un ticket (mise à jour du statut + déclenchement n8n)
+
 @app.route('/process_ticket', methods=['POST'])
 def process_ticket():
     import requests
@@ -655,7 +673,7 @@ def process_ticket():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("UPDATE tickets SET status = 'en cours' WHERE id = %s;", (ticket_id,))
+        cur.execute("UPDATE tickets SET status = 'en attente' WHERE id = %s;", (ticket_id,))
         conn.commit()
         cur.close()
         conn.close()

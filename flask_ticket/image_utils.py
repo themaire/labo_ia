@@ -18,12 +18,22 @@ def preprocess(path):
     else:
         img = path
     cropped = auto_crop_ticket(img)
-    # Resize à 600px de large max
+    # Redimensionnement : le plus grand côté (largeur ou hauteur) ne dépasse pas 800px
     h, w = cropped.shape[:2]
-    if w > 600:
-        ratio = 600 / w
-        cropped = cv2.resize(cropped, (600, int(h * ratio)))
-    return cropped
+    max_side = max(h, w)
+    if max_side > 800:
+        ratio = 800 / max_side
+        new_w = int(w * ratio)
+        new_h = int(h * ratio)
+        cropped = cv2.resize(cropped, (new_w, new_h))
+    # Conversion JPEG qualité 80
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+    success, jpeg_buf = cv2.imencode('.jpg', cropped, encode_param)
+    if not success:
+        raise ValueError("Erreur lors de la conversion JPEG")
+    # Décodage pour retourner un array numpy (BGR)
+    jpeg_img = cv2.imdecode(jpeg_buf, cv2.IMREAD_COLOR)
+    return jpeg_img
 
 def auto_crop_ticket(image):
     import numpy as np

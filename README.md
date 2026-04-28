@@ -85,5 +85,5 @@ Accès : [http://localhost:5000/history](http://localhost:5000/history)
 - Projet expérimental pour laboratoire IA local.
 
 ## Auteur
-Nicolas ELIE
+Nicolas ELIE et 
 Github Copilot
