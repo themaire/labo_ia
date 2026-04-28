@@ -240,6 +240,7 @@ def check_tickets():
         conn.close()
     except Exception as e:
         tickets = []
+    # Génération HTML simple, mobile friendly
     html = """
     <html lang='fr'><head><meta name='viewport' content='width=device-width, initial-scale=1'>
     <meta http-equiv='Content-Language' content='fr'>
@@ -250,10 +251,58 @@ def check_tickets():
     .header a { text-decoration: none; color: #1976d2; font-weight: bold; font-size: 1.1em; }
     .ticket { border-bottom: 1px solid #ccc; padding: 0.5em 0; display: flex; align-items: center; justify-content: space-between; }
     .ticket-info { flex: 1; }
+    .ticket-actions { display: flex; align-items: center; gap: 0.5em; }
     .status-ok { color: green; font-weight: bold; }
     .status-ko { color: red; font-weight: bold; }
-    .del-btn { background: #e53935; color: #fff; border: none; border-radius: 0.4em; padding: 0.3em 0.8em; font-size: 1em; cursor: pointer; margin-left: 1em; }
+    .del-btn { background: #e53935; color: #fff; border: none; border-radius: 0.4em; padding: 0.3em 0.8em; font-size: 1em; cursor: pointer; margin-left: 0; }
     .del-btn:hover { background: #b71c1c; }
+    .img-btn { background: none; border: none; cursor: pointer; font-size: 1.3em; }
+    .process-btn { background:#1976d2; color:#fff; border:none; border-radius:0.4em; padding:0.3em 0.8em; font-size:1em; margin-left:0; }
+    .process-btn:hover { background:#125ea2; }
+    #img-modal-bg { display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
+    #img-modal-content { background:#fff; padding:1em; border-radius:1em; max-width:95vw; max-height:90vh; display:flex; flex-direction:column; align-items:center; }
+    #img-modal-content img { max-width:90vw; max-height:70vh; border-radius:0.5em; }
+    #img-modal-close { margin-top:1em; font-size:1.2em; background:#1976d2; color:#fff; border:none; border-radius:0.5em; padding:0.5em 1.2em; cursor:pointer; }
+    #img-modal-close:hover { background:#125ea2; }
+    .img-zoom-fullscreen {
+      position: static !important;
+      margin: 0;
+      z-index: 2001;
+      background: #000;
+      display: block;
+      border-radius: 0 !important;
+      box-shadow: none;
+      cursor: zoom-out;
+      width: auto !important;
+      height: auto !important;
+      max-width: none !important;
+      max-height: none !important;
+      object-fit: none !important;
+      /* Centrage natif par flex du parent */
+    }
+    #img-modal-bg.img-zoom-bg {
+      overflow: auto !important;
+      display: flex !important;
+      background: #000 !important;
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    #img-modal-close.img-zoom-close {
+      position: fixed;
+      top: 1.5em;
+      right: 2em;
+      z-index: 2002;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      padding: 0.5em 1.2em;
+      font-size: 1.2em;
+      cursor: pointer;
+      opacity: 0.95;
+    }
+    #img-modal-close.img-zoom-close:hover { background: #125ea2; }
     </style></head><body>
     <div class='header'>
       <a href='/'>🏠 Accueil</a>
@@ -277,16 +326,177 @@ def check_tickets():
         else:
             status_html = f"<span style='color:gray;'>{status or '-'}</span>"
         html += f"<div class='ticket'><div class='ticket-info'><b>{filename or 'ticket_' + str(id)}</b> [{ticket_type or '-'}] - {status_html}<br><small>{created_at}</small></div>"
+        html += "<div class='ticket-actions'>"
+        html += f"<button class='img-btn' title='Voir l'image' onclick=\"showTicketImage({id});return false;\">📷</button>"
         html += f"<form method='post' action='/delete_ticket' style='margin:0;display:inline;'><input type='hidden' name='id' value='{id}' /><button class='del-btn' type='submit' onclick=\"return confirm('Supprimer ce ticket ?');\">🗑️</button></form>"
-        # Ajout du bouton Traiter si statut = en attente
         if status == 'en attente':
-            html += f"<form method='post' action='/process_ticket' style='margin:0;display:inline;'><input type='hidden' name='id' value='{id}' /><button class='del-btn' style='background:#1976d2;margin-left:1em;' type='submit'>🚀 Traiter</button></form>"
-        html += "</div>"
+            html += f"<form method='post' action='/process_ticket' style='margin:0;display:inline;'><input type='hidden' name='id' value='{id}' /><button class='process-btn' type='submit'>🚀 Traiter</button></form>"
+        html += "</div></div>"
+    # Modale image (ajoutée une seule fois)
+    html += '''
+    <style>
+    /* ...existing styles... */
+    #img-modal-bg.img-zoom-bg {
+      overflow: auto !important;
+      display: flex !important;
+      background: #000 !important;
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    .img-zoom-fullscreen {
+      position: static !important;
+      margin: 0;
+      z-index: 2001;
+      background: #000;
+      display: block;
+      border-radius: 0 !important;
+      box-shadow: none;
+      cursor: zoom-out;
+      width: auto !important;
+      height: auto !important;
+      max-width: none !important;
+      max-height: none !important;
+      object-fit: none !important;
+      /* Centrage natif par flex du parent */
+    }
+    #img-modal-close.img-zoom-close {
+      position: fixed;
+      top: 1.5em;
+      right: 2em;
+      z-index: 2002;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      padding: 0.5em 1.2em;
+      font-size: 1.2em;
+      cursor: pointer;
+      opacity: 0.95;
+    }
+    #img-modal-close.img-zoom-close:hover { background: #125ea2; }
+    </style>
+    <div id="img-modal-bg">
+      <div id="img-modal-content">
+        <img id="img-modal-img" src="" alt="Ticket" />
+        <button id="img-modal-close">Fermer</button>
+      </div>
+    </div>
+    <script>
+    // Pour replacer l'image dans le bon conteneur
+    function showTicketImage(ticketId) {
+      const modalBg = document.getElementById('img-modal-bg');
+      const modalImg = document.getElementById('img-modal-img');
+      const modalContent = document.getElementById('img-modal-content');
+      const closeBtn = document.getElementById('img-modal-close');
+      modalImg.src = '';
+      modalImg.alt = 'Chargement...';
+      modalImg.classList.remove('img-zoom-fullscreen');
+      modalBg.classList.remove('img-zoom-bg');
+      closeBtn.classList.remove('img-zoom-close');
+      modalContent.style.display = 'flex';
+      // Toujours replacer l'image dans le modal-content
+      if (modalImg.parentNode !== modalContent) {
+        modalContent.insertBefore(modalImg, closeBtn);
+      }
+      modalBg.style.display = 'flex';
+      fetch('/api_ticket_image/' + ticketId)
+        .then(r => r.json())
+        .then(data => {
+          if(data.success) {
+            modalImg.src = data.url;
+            modalImg.alt = 'Ticket';
+          } else {
+            modalImg.alt = 'Erreur chargement image';
+          }
+        })
+        .catch(_ => { modalImg.alt = 'Erreur chargement image'; });
+    }
+    document.getElementById('img-modal-close').onclick = function() {
+      const modalBg = document.getElementById('img-modal-bg');
+      const modalImg = document.getElementById('img-modal-img');
+      const closeBtn = document.getElementById('img-modal-close');
+      modalBg.style.display = 'none';
+      modalImg.src = '';
+      modalImg.classList.remove('img-zoom-fullscreen');
+      modalBg.classList.remove('img-zoom-bg');
+      closeBtn.classList.remove('img-zoom-close');
+      document.getElementById('img-modal-content').style.display = 'flex';
+      // Toujours replacer l'image dans le modal-content
+      const modalContent = document.getElementById('img-modal-content');
+      if (modalImg.parentNode !== modalContent) {
+        modalContent.insertBefore(modalImg, closeBtn);
+      }
+    };
+    document.getElementById('img-modal-bg').onclick = function(e) {
+      if(e.target === this) {
+        this.style.display = 'none';
+        document.getElementById('img-modal-img').src = '';
+        document.getElementById('img-modal-img').classList.remove('img-zoom-fullscreen');
+        this.classList.remove('img-zoom-bg');
+        document.getElementById('img-modal-close').classList.remove('img-zoom-close');
+        document.getElementById('img-modal-content').style.display = 'flex';
+        // Toujours replacer l'image dans le modal-content
+        const modalContent = document.getElementById('img-modal-content');
+        const modalImg = document.getElementById('img-modal-img');
+        if (modalImg.parentNode !== modalContent) {
+          modalContent.insertBefore(modalImg, document.getElementById('img-modal-close'));
+        }
+      }
+    };
+    // Zoom 1:1 sur clic image
+    document.getElementById('img-modal-img').onclick = function(e) {
+      e.stopPropagation();
+      const img = this;
+      const modalBg = document.getElementById('img-modal-bg');
+      const closeBtn = document.getElementById('img-modal-close');
+      const modalContent = document.getElementById('img-modal-content');
+      if (!img.classList.contains('img-zoom-fullscreen')) {
+        img.classList.add('img-zoom-fullscreen');
+        modalBg.classList.add('img-zoom-bg');
+        closeBtn.classList.add('img-zoom-close');
+        modalContent.style.display = 'none';
+        // Déplacer l'image dans le fond noir (modal-bg)
+        modalBg.appendChild(img);
+      } else {
+        img.classList.remove('img-zoom-fullscreen');
+        modalBg.classList.remove('img-zoom-bg');
+        closeBtn.classList.remove('img-zoom-close');
+        modalContent.style.display = 'flex';
+        // Replacer l'image dans le modal-content
+        if (img.parentNode !== modalContent) {
+          modalContent.insertBefore(img, closeBtn);
+        }
+      }
+    };
+    </script>
+    '''
     html += """
     </div>
     </body></html>
     """
     return html
+
+# Endpoint pour récupérer l'image d'un ticket (base64 -> data URL)
+@app.route('/api_ticket_image/<int:ticket_id>')
+def api_ticket_image(ticket_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT image FROM tickets WHERE id = %s', (ticket_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row or not row[0]:
+            return jsonify({'success': False, 'error': 'Image non trouvée'})
+        import base64
+        img_bytes = row[0]
+        b64 = base64.b64encode(img_bytes).decode('utf-8')
+        url = f'data:image/jpeg;base64,{b64}'
+        return jsonify({'success': True, 'url': url})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 
 # Route pour supprimer un ticket
 @app.route('/delete_ticket', methods=['POST'])
@@ -334,17 +544,230 @@ def delete_ticket():
     <title>Liste des tickets</title>
     <style>
     body { font-family: sans-serif; margin: 1em; }
-    .ticket { border-bottom: 1px solid #ccc; padding: 0.5em 0; }
+    .header { display: flex; gap: 1em; align-items: center; margin-bottom: 1em; }
+    .header a { text-decoration: none; color: #1976d2; font-weight: bold; font-size: 1.1em; }
+    .ticket { border-bottom: 1px solid #ccc; padding: 0.5em 0; display: flex; align-items: center; justify-content: space-between; }
+    .ticket-info { flex: 1; }
+    .ticket-actions { display: flex; align-items: center; gap: 0.5em; }
     .status-ok { color: green; font-weight: bold; }
     .status-ko { color: red; font-weight: bold; }
+    .del-btn { background: #e53935; color: #fff; border: none; border-radius: 0.4em; padding: 0.3em 0.8em; font-size: 1em; cursor: pointer; margin-left: 0; }
+    .del-btn:hover { background: #b71c1c; }
+    .img-btn { background: none; border: none; cursor: pointer; font-size: 1.3em; }
+    .process-btn { background:#1976d2; color:#fff; border:none; border-radius:0.4em; padding:0.3em 0.8em; font-size:1em; margin-left:0; }
+    .process-btn:hover { background:#125ea2; }
+    #img-modal-bg { display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
+    #img-modal-content { background:#fff; padding:1em; border-radius:1em; max-width:95vw; max-height:90vh; display:flex; flex-direction:column; align-items:center; }
+    #img-modal-content img { max-width:90vw; max-height:70vh; border-radius:0.5em; }
+    #img-modal-close { margin-top:1em; font-size:1.2em; background:#1976d2; color:#fff; border:none; border-radius:0.5em; padding:0.5em 1.2em; cursor:pointer; }
+    #img-modal-close:hover { background:#125ea2; }
+    .img-zoom-fullscreen {
+      position: static !important;
+      margin: 0;
+      z-index: 2001;
+      background: #000;
+      display: block;
+      border-radius: 0 !important;
+      box-shadow: none;
+      cursor: zoom-out;
+      width: auto !important;
+      height: auto !important;
+      max-width: none !important;
+      max-height: none !important;
+      object-fit: none !important;
+      /* Centrage natif par flex du parent */
+    }
+    #img-modal-bg.img-zoom-bg {
+      overflow: auto !important;
+      display: flex !important;
+      background: #000 !important;
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    #img-modal-close.img-zoom-close {
+      position: fixed;
+      top: 1.5em;
+      right: 2em;
+      z-index: 2002;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      padding: 0.5em 1.2em;
+      font-size: 1.2em;
+      cursor: pointer;
+      opacity: 0.95;
+    }
+    #img-modal-close.img-zoom-close:hover { background: #125ea2; }
     </style></head><body>
-    <h2>erniers tickets</h2>
+    <div class='header'>
+      <a href='/'>🏠 Accueil</a>
+      <a href='/upload_ticket'>📷 Envoyer</a>
+      <a href='/ask'>🧠 IA</a>
+    </div>
+    <h2>50 derniers tickets</h2>
     <div>
     """
     for t in tickets:
-        id, filename, is_processed, created_at = t
-        status = "<span class='status-ok'>✔ traité</span>" if is_processed else "<span class='status-ko'>⏳ en attente</span>"
-        html += f"<div class='ticket'><b>{filename or 'ticket_' + str(id)}</b> - {status}<br><small>{created_at}</small></div>"
+        id, filename, is_processed, created_at, ticket_type, status = t
+        # Affichage dynamique du statut
+        if status == 'en attente':
+            status_html = "<span style='color:orange;font-weight:bold;'>🕓 en attente</span>"
+        elif status == 'en cours':
+            status_html = "<span style='color:blue;font-weight:bold;'>⏳ en cours</span>"
+        elif status == 'traité':
+            status_html = "<span style='color:green;font-weight:bold;'>✔ traité</span>"
+        elif status == 'erreur':
+            status_html = "<span style='color:red;font-weight:bold;'>❌ erreur</span>"
+        else:
+            status_html = f"<span style='color:gray;'>{status or '-'}</span>"
+        html += f"<div class='ticket'><div class='ticket-info'><b>{filename or 'ticket_' + str(id)}</b> [{ticket_type or '-'}] - {status_html}<br><small>{created_at}</small></div>"
+        html += "<div class='ticket-actions'>"
+        html += f"<button class='img-btn' title='Voir l'image' onclick=\"showTicketImage({id});return false;\">📷</button>"
+        html += f"<form method='post' action='/delete_ticket' style='margin:0;display:inline;'><input type='hidden' name='id' value='{id}' /><button class='del-btn' type='submit' onclick=\"return confirm('Supprimer ce ticket ?');\">🗑️</button></form>"
+        if status == 'en attente':
+            html += f"<form method='post' action='/process_ticket' style='margin:0;display:inline;'><input type='hidden' name='id' value='{id}' /><button class='process-btn' type='submit'>🚀 Traiter</button></form>"
+        html += "</div></div>"
+    # Modale image (ajoutée une seule fois)
+    html += '''
+    <style>
+    /* ...existing styles... */
+    #img-modal-bg.img-zoom-bg {
+      overflow: auto !important;
+      display: flex !important;
+      background: #000 !important;
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    .img-zoom-fullscreen {
+      position: static !important;
+      margin: 0;
+      z-index: 2001;
+      background: #000;
+      display: block;
+      border-radius: 0 !important;
+      box-shadow: none;
+      cursor: zoom-out;
+      width: auto !important;
+      height: auto !important;
+      max-width: none !important;
+      max-height: none !important;
+      object-fit: none !important;
+      /* Centrage natif par flex du parent */
+    }
+    #img-modal-close.img-zoom-close {
+      position: fixed;
+      top: 1.5em;
+      right: 2em;
+      z-index: 2002;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      padding: 0.5em 1.2em;
+      font-size: 1.2em;
+      cursor: pointer;
+      opacity: 0.95;
+    }
+    #img-modal-close.img-zoom-close:hover { background: #125ea2; }
+    </style>
+    <div id="img-modal-bg">
+      <div id="img-modal-content">
+        <img id="img-modal-img" src="" alt="Ticket" />
+        <button id="img-modal-close">Fermer</button>
+      </div>
+    </div>
+    <script>
+    // Pour replacer l'image dans le bon conteneur
+    function showTicketImage(ticketId) {
+      const modalBg = document.getElementById('img-modal-bg');
+      const modalImg = document.getElementById('img-modal-img');
+      const modalContent = document.getElementById('img-modal-content');
+      const closeBtn = document.getElementById('img-modal-close');
+      modalImg.src = '';
+      modalImg.alt = 'Chargement...';
+      modalImg.classList.remove('img-zoom-fullscreen');
+      modalBg.classList.remove('img-zoom-bg');
+      closeBtn.classList.remove('img-zoom-close');
+      modalContent.style.display = 'flex';
+      // Toujours replacer l'image dans le modal-content
+      if (modalImg.parentNode !== modalContent) {
+        modalContent.insertBefore(modalImg, closeBtn);
+      }
+      modalBg.style.display = 'flex';
+      fetch('/api_ticket_image/' + ticketId)
+        .then(r => r.json())
+        .then(data => {
+          if(data.success) {
+            modalImg.src = data.url;
+            modalImg.alt = 'Ticket';
+          } else {
+            modalImg.alt = 'Erreur chargement image';
+          }
+        })
+        .catch(_ => { modalImg.alt = 'Erreur chargement image'; });
+    }
+    document.getElementById('img-modal-close').onclick = function() {
+      const modalBg = document.getElementById('img-modal-bg');
+      const modalImg = document.getElementById('img-modal-img');
+      const closeBtn = document.getElementById('img-modal-close');
+      modalBg.style.display = 'none';
+      modalImg.src = '';
+      modalImg.classList.remove('img-zoom-fullscreen');
+      modalBg.classList.remove('img-zoom-bg');
+      closeBtn.classList.remove('img-zoom-close');
+      document.getElementById('img-modal-content').style.display = 'flex';
+      // Toujours replacer l'image dans le modal-content
+      const modalContent = document.getElementById('img-modal-content');
+      if (modalImg.parentNode !== modalContent) {
+        modalContent.insertBefore(modalImg, closeBtn);
+      }
+    };
+    document.getElementById('img-modal-bg').onclick = function(e) {
+      if(e.target === this) {
+        this.style.display = 'none';
+        document.getElementById('img-modal-img').src = '';
+        document.getElementById('img-modal-img').classList.remove('img-zoom-fullscreen');
+        this.classList.remove('img-zoom-bg');
+        document.getElementById('img-modal-close').classList.remove('img-zoom-close');
+        document.getElementById('img-modal-content').style.display = 'flex';
+        // Toujours replacer l'image dans le modal-content
+        const modalContent = document.getElementById('img-modal-content');
+        const modalImg = document.getElementById('img-modal-img');
+        if (modalImg.parentNode !== modalContent) {
+          modalContent.insertBefore(modalImg, document.getElementById('img-modal-close'));
+        }
+      }
+    };
+    // Zoom 1:1 sur clic image
+    document.getElementById('img-modal-img').onclick = function(e) {
+      e.stopPropagation();
+      const img = this;
+      const modalBg = document.getElementById('img-modal-bg');
+      const closeBtn = document.getElementById('img-modal-close');
+      const modalContent = document.getElementById('img-modal-content');
+      if (!img.classList.contains('img-zoom-fullscreen')) {
+        img.classList.add('img-zoom-fullscreen');
+        modalBg.classList.add('img-zoom-bg');
+        closeBtn.classList.add('img-zoom-close');
+        modalContent.style.display = 'none';
+        // Déplacer l'image dans le fond noir (modal-bg)
+        modalBg.appendChild(img);
+      } else {
+        img.classList.remove('img-zoom-fullscreen');
+        modalBg.classList.remove('img-zoom-bg');
+        closeBtn.classList.remove('img-zoom-close');
+        modalContent.style.display = 'flex';
+        // Replacer l'image dans le modal-content
+        if (img.parentNode !== modalContent) {
+          modalContent.insertBefore(img, closeBtn);
+        }
+      }
+    };
+    </script>
+    '''
     html += """
     </div>
     </body></html>
@@ -536,16 +959,12 @@ def api_ollama():
 @app.route('/upload_ticket', methods=['GET', 'POST'])
 def upload_ticket():
     types = [
-        ("Supermarché", "superm"),
         ("Carburant", "carbu"),
+        ("Supermarché", "superm"),
         ("Pain", "pain"),
-        ("Nico midi", "nicomidi"),
-        ("Audrey midi", "audreymidi"),
-        ("Divers", "divers"),
-        ("Loisir", "loisirs")
     ]
     if request.method == 'GET':
-        # Formulaire HTML mobile-friendly pour upload avec menu déroulant et header
+        # Formulaire HTML mobile-friendly pour upload avec Croppr.js
         select_html = '<select name="type" required>'
         for label, value in types:
             select_html += f'<option value="{value}">{label}</option>'
@@ -561,106 +980,161 @@ def upload_ticket():
         input[type=file] {{ font-size: 1.2em; }}
         button {{ font-size: 1.2em; padding: 0.5em; }}
         select {{ font-size: 1.2em; padding: 0.3em; }}
-        </style></head><body>
-        <div class='header'>
-          <a href='/'>🏠 Accueil</a>
-          <a href='/check_tickets'>📋 Liste</a>
-          <a href='/ask'>🧠 IA</a>
-        </div>
-        <h2>Envoyer un ticket</h2>
-        <form class="form" method="post" enctype="multipart/form-data">
-            <input type="file" name="image" accept="image/*" capture="environment" required />
-            {select_html}
-            <button type="submit">Envoyer</button>
-        </form>
-        </body></html>
-        '''
-    # POST : logique d'enregistrement existante
-    ticket_type = request.form.get('type') if request.form else None
-    import numpy as np
-    import cv2
-    from flask_ticket.image_utils import preprocess as img_preprocess
-    if 'image' in request.files:
-        file = request.files['image']
-        image_bytes = file.read()
-        filename = file.filename
-        # Prétraitement par défaut
-        arr = np.frombuffer(image_bytes, dtype=np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        processed = img_preprocess(img)
-        # Ré-encodage JPEG qualité 80 (déjà fait dans preprocess, mais on s'assure du format)
-        _, buf = cv2.imencode('.jpg', processed, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-        image_bytes = buf.tobytes()
-    else:
-        data = request.get_json()
-        img_b64 = data.get('image', '')
-        filename = data.get('filename', None)
-        ticket_type = data.get('type', None)
-        if not img_b64:
-            return jsonify({'error': 'Aucune image reçue'}), 400
-        image_bytes = base64.b64decode(img_b64)
-        # Prétraitement par défaut
-        arr = np.frombuffer(image_bytes, dtype=np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        processed = img_preprocess(img)
-        _, buf = cv2.imencode('.jpg', processed, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-        image_bytes = buf.tobytes()
-
-    # Vérification doublon (nom + taille)
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute('''SELECT id FROM tickets WHERE filename = %s AND octet_length(image) = %s LIMIT 1;''', (filename, len(image_bytes)))
-        doublon = cur.fetchone()
-        cur.close()
-        conn.close()
-        if doublon:
-            # Redirige vers une page d'erreur d'upload
-            from flask import redirect, url_for
-            return redirect(url_for('upload_error', msg="Une image du même nom et de la même taille existe déjà dans la base de données."))
-    except Exception as e:
-        # En cas d'erreur de vérification, on continue l'insert (fail-safe)
-        pass
-
-    # Insertion du ticket en base et retour HTML de succès
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute('''
-            INSERT INTO tickets (image, is_processed, filename, type, status)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id, created_at;
-        ''', (psycopg2.Binary(image_bytes), False, filename, ticket_type, 'en attente'))
-        ticket_id, created_at = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-        # Retour mobile-friendly avec header
-        return f"""
-        <html lang='fr'><head><meta name='viewport' content='width=device-width, initial-scale=1'>
-        <meta http-equiv='Content-Language' content='fr'>
-        <title>Ticket reçu</title>
-        <style>
-        body {{ font-family: sans-serif; margin: 1em; text-align: center; }}
-        .header {{ display: flex; gap: 1em; align-items: center; justify-content: center; margin-bottom: 1em; }}
-        .header a {{ text-decoration: none; color: #1976d2; font-weight: bold; font-size: 1.1em; }}
-        .btn {{ display: inline-block; margin-top: 2em; padding: 1em 2em; background: #1976d2; color: #fff; border: none; border-radius: 0.7em; font-size: 1.1em; text-decoration: none; font-weight: bold; }}
-        .btn:hover {{ background: #125ea2; }}
-        </style></head><body>
+        #preview {{ max-width:100%; display:none; margin:1em 0; }}
+        #crop-btn {{ display:none; }}
+        </style>
+        <link rel="stylesheet" href="https://unpkg.com/croppr/dist/croppr.min.css">
+        <script src="https://unpkg.com/croppr"></script>
+        </head><body>
         <div class='header'>
             <a href='/'>🏠 Accueil</a>
-            <a href='/upload_ticket'>📷 Envoyer</a>
             <a href='/check_tickets'>📋 Liste</a>
             <a href='/ask'>🧠 IA</a>
         </div>
-        <h2>Ticket reçu !</h2>
-        <p>Ticket n° {ticket_id} enregistré le {created_at}.</p>
-        <a class='btn' href='/upload_ticket'>Envoyer un autre ticket</a>
-        <a class='btn' href='/check_tickets'>Voir la liste</a>
+        <h2>Envoyer un ticket</h2>
+        <form class="form" id="ticket-form" method="post" enctype="multipart/form-data">
+            <input type="file" id="image-input" name="image" accept="image/*" capture="environment" required />
+            <img id="preview" style="max-width:100%;display:none;margin:1em 0;">
+            <input type="hidden" name="cropped_image" id="cropped-image-field" />
+            {select_html}
+            <button type="button" id="crop-btn" style="display:none;">Rogner et valider</button>
+            <button type="submit" id="submit-btn">Envoyer</button>
+        </form>
+        <script>
+        let croppr = null;
+        let cropData = null;
+        let imageLoaded = false;
+        let img = null;
+        const cropBtn = document.getElementById('crop-btn');
+        cropBtn.disabled = true;
+        cropBtn.style.display = 'none';
+        document.getElementById('image-input').addEventListener('change', function(e) {{
+            const file = e.target.files[0];
+            if (!file) return;
+            cropBtn.disabled = true;
+            cropBtn.style.display = 'none';
+            cropData = null;
+            imageLoaded = false;
+            img = document.getElementById('preview');
+            const reader = new FileReader();
+            reader.onload = function(evt) {{
+                img.onload = function() {{
+                    imageLoaded = true;
+                    if (croppr) croppr.destroy();
+                    croppr = new Croppr('#preview', {{
+                        onCropEnd: function(data) {{
+                            cropData = data;
+                            if (imageLoaded && cropData) {{
+                                cropBtn.disabled = false;
+                                cropBtn.style.display = 'inline-block';
+                            }}
+                        }}
+                    }});
+                }};
+                img.src = evt.target.result;
+                img.style.display = 'block';
+            }};
+            reader.readAsDataURL(file);
+        }});
+        cropBtn.addEventListener('click', function() {{
+            console.log('img:', img, 'naturalWidth:', img ? img.naturalWidth : 'null', 'naturalHeight:', img ? img.naturalHeight : 'null', 'imageLoaded:', imageLoaded, 'cropData:', cropData);
+            if (!img || !imageLoaded || !img.naturalWidth || !img.naturalHeight) {{
+                alert("Aucune image chargée ou image invalide. Veuillez sélectionner une image.");
+                return;
+            }}
+            if (!cropData) {{
+                alert("Veuillez d'abord sélectionner une zone à rogner sur l'image.");
+                return;
+            }}
+            const canvas = document.createElement('canvas');
+            const scale = img.naturalWidth / img.width;
+            canvas.width = cropData.width * scale;
+            canvas.height = cropData.height * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(
+                img,
+                cropData.x * scale, cropData.y * scale, cropData.width * scale, cropData.height * scale,
+                0, 0, cropData.width * scale, cropData.height * scale
+            );
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('cropped-image-field').value = dataUrl;
+            cropBtn.style.display = 'none';
+            cropBtn.disabled = true;
+            // Soumission automatique du formulaire
+            document.getElementById('ticket-form').submit();
+        }});
+        </script>
         </body></html>
-        """
-    except Exception as e:
-        return f"<html><body><h2>Erreur</h2><p>{str(e)}</p></body></html>", 500
+        '''
+    if request.method == 'POST':
+        from base64 import b64decode
+        import os
+        cropped_b64 = request.form.get('cropped_image', '')
+        image_bytes = None
+        filename = None
+        ticket_type = request.form.get('type', None)
+        # Si une image rognée est envoyée, on la décode
+        if cropped_b64 and cropped_b64.startswith('data:image/'):
+            # Format data:image/jpeg;base64,...
+            try:
+                header, b64data = cropped_b64.split(',', 1)
+                image_bytes = b64decode(b64data)
+                # Déterminer le nom du fichier original
+                orig_file = request.files.get('image')
+                if orig_file and orig_file.filename:
+                    orig_name, orig_ext = os.path.splitext(orig_file.filename)
+                    ext = orig_ext if orig_ext else '.jpg'
+                    filename = f"{orig_name}_cropped{ext}"
+                else:
+                    filename = 'ticket_cropped.jpg'
+            except Exception as e:
+                return f"<html><body><h2>Erreur</h2><p>Erreur décodage image rognée : {str(e)}</p></body></html>", 400
+        elif 'image' in request.files:
+            file = request.files['image']
+            image_bytes = file.read()
+            filename = file.filename
+        else:
+            return f"<html><body><h2>Erreur</h2><p>Aucune image reçue.</p></body></html>", 400
+
+        # Insertion du ticket en base et retour HTML de succès
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute('''
+                INSERT INTO tickets (image, is_processed, filename, type, status)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, created_at;
+            ''', (psycopg2.Binary(image_bytes), False, filename, ticket_type, 'en attente'))
+            ticket_id, created_at = cur.fetchone()
+            conn.commit()
+            cur.close()
+            conn.close()
+            # Retour mobile-friendly avec header
+            return f"""
+            <html lang='fr'><head><meta name='viewport' content='width=device-width, initial-scale=1'>
+            <meta http-equiv='Content-Language' content='fr'>
+            <title>Ticket reçu</title>
+            <style>
+            body {{ font-family: sans-serif; margin: 1em; text-align: center; }}
+            .header {{ display: flex; gap: 1em; align-items: center; justify-content: center; margin-bottom: 1em; }}
+            .header a {{ text-decoration: none; color: #1976d2; font-weight: bold; font-size: 1.1em; }}
+            .btn {{ display: inline-block; margin-top: 2em; padding: 1em 2em; background: #1976d2; color: #fff; border: none; border-radius: 0.7em; font-size: 1.1em; text-decoration: none; font-weight: bold; }}
+            .btn:hover {{ background: #125ea2; }}
+            </style></head><body>
+            <div class='header'>
+                <a href='/'>🏠 Accueil</a>
+                <a href='/upload_ticket'>📷 Envoyer</a>
+                <a href='/check_tickets'>📋 Liste</a>
+                <a href='/ask'>🧠 IA</a>
+            </div>
+            <h2>Ticket reçu !</h2>
+            <p>Ticket n° {ticket_id} enregistré le {created_at}.</p>
+            <a class='btn' href='/upload_ticket'>Envoyer un autre ticket</a>
+            <a class='btn' href='/check_tickets'>Voir la liste</a>
+            </body></html>
+            """
+        except Exception as e:
+            return f"<html><body><h2>Erreur</h2><p>{str(e)}</p></body></html>", 500
 # Route pour traiter un ticket (mise à jour du statut + déclenchement n8n)
 
 @app.route('/process_ticket', methods=['POST'])
