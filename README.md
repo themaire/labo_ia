@@ -19,9 +19,12 @@ Cette application Flask permet d'uploader une photo et d'envoyer un prompt via u
 - Choix du modèle
 - Zone de prompt si nécessaire
 - Upload d'image (obligatoire ou optionnel selon le modèle)
+- **Rognage/crop côté client** avant envoi (Croppr.js, mobile/desktop, workflow fluide)
 - Affichage du résultat
 - Feedback asynchrone ("Veuillez patienter...")
 - **Historique des tests** : visualisation, suppression, détails, reload, zoom image, copie, affichage des métadonnées (prétraitement, résolution...)
+- **Prévisualisation et zoom 1:1** des images uploadées ou rognées, y compris dans la liste des tickets
+- **Nommage intelligent** des fichiers rognés : nom original + _cropped + extension
 
 ## Installation
 1. Cloner ce dépôt ou copier les fichiers dans un dossier.

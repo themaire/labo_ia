@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, jsonify
+from flask import Flask, request, render_template_string, jsonify, Response
 import requests as req
 import os
 
@@ -1164,6 +1164,44 @@ def process_ticket():
     # Redirige vers la liste
     from flask import redirect, url_for
     return redirect(url_for('check_tickets'))
+
+
+# Route pour servir l'image binaire d'un ticket
+@app.route('/pictbyid/<int:ticket_id>')
+def pictbyid(ticket_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT image, filename FROM tickets WHERE id = %s", (ticket_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row is None:
+            return "Not Found", 404
+        image_bytes, filename = row
+        if not isinstance(image_bytes, (bytes, bytearray)) or not image_bytes:
+            return "Image non trouvée ou vide", 404
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in ['.jpg', '.jpeg']:
+            mimetype = 'image/jpeg'
+        elif ext == '.png':
+            mimetype = 'image/png'
+        elif ext == '.webp':
+            mimetype = 'image/webp'
+        else:
+            mimetype = 'application/octet-stream'
+
+        def generate():
+            chunk_size = 65536  # 64 Ko
+            for i in range(0, len(image_bytes), chunk_size):
+                yield image_bytes[i:i+chunk_size]
+
+        return Response(generate(), mimetype=mimetype, headers={
+            'Content-Disposition': f'inline; filename="{filename}"',
+            'Cache-Control': 'public, max-age=604800, immutable'
+        })
+    except Exception as e:
+        return f"Erreur serveur : {str(e)}", 500
 
 # Route d'erreur d'upload (doit être au niveau global)
 @app.route('/upload_error')
