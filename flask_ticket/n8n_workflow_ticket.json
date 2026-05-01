@@ -1,0 +1,144 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ticket-webhook"
+      },
+      "id": "Webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Récupère l'ID du ticket depuis le webhook\nreturn [{ json: { ticket_id: $json[\"body\"].ticket_id } }];"
+      },
+      "id": "Extract Ticket ID",
+      "name": "Extract Ticket ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, filename, type, image FROM tickets WHERE id = {{$json.ticket_id}};"
+      },
+      "id": "Postgres Get Ticket",
+      "name": "Postgres Get Ticket",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "credentials": {
+        "postgres": "PostgreSQL"
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://OLLAMA_SERVER:11434/api/generate",
+        "method": "POST",
+        "bodyParametersJson": "{\n  \"model\": \"ticket_carburant:latest\",\n  \"images\": [\"{{$json[\"image\"]}}\"]\n}",
+        "options": {}
+      },
+      "id": "Ollama Inference",
+      "name": "Ollama Inference",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE tickets SET status = 'traité' WHERE id = {{$json.id}};"
+      },
+      "id": "Set Status Traité",
+      "name": "Set Status Traité",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "credentials": {
+        "postgres": "PostgreSQL"
+      }
+    },
+    {
+      "parameters": {
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "tableId": "YOUR_AIRTABLE_TABLE_ID",
+        "operation": "create",
+        "fields": {
+          "Ticket ID": "={{$json.id}}",
+          "Type": "={{$json.type}}",
+          "Filename": "={{$json.filename}}",
+          "Inference": "={{$json[\"Ollama Inference\"].body}}"
+        }
+      },
+      "id": "Airtable",
+      "name": "Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [1200, 300],
+      "credentials": {
+        "airtableApi": "Airtable Account"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Ticket ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Ticket ID": {
+      "main": [
+        [
+          {
+            "node": "Postgres Get Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Get Ticket": {
+      "main": [
+        [
+          {
+            "node": "Ollama Inference",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Inference": {
+      "main": [
+        [
+          {
+            "node": "Set Status Traité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status Traité": {
+      "main": [
+        [
+          {
+            "node": "Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

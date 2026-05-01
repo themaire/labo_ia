@@ -1,5 +1,27 @@
 <!doctype html>
+<html lang="fr">
+<head>
+<meta http-equiv="Content-Language" content="fr">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Labo_IA</title>
+<style>
+body { font-family: sans-serif; margin: 1em; }
+.header { display: flex; gap: 1em; align-items: center; margin-bottom: 1em; }
+.header a { text-decoration: none; color: #1976d2; font-weight: bold; font-size: 1.1em; }
+/* Suppression du passage en colonne sur mobile pour garder l'alignement horizontal */
+</style>
+</head>
+<body>
+<div class="header">
+    <a href="/">🏠 Accueil</a>
+    <a href="/upload_ticket">📷 Envoyer</a>
+    <a href="/check_tickets">📋 Liste</a>
+</div>
+{% if show_history_link %}
+<div style="margin-bottom:1em;text-align:center;">
+    <a href="/history" style="color:#1976d2;font-weight:bold;font-size:1.1em;text-decoration:underline;">Consulter l'historique des prompts</a>
+</div>
+{% endif %}
 <h2>Laboratoire IA local</h2>
 <form enctype=multipart/form-data id="formulaire">
     <label for="server">Choisir le serveur :</label>
@@ -17,17 +39,45 @@
     <div id="promptDiv" style="display: {% if need_prompt %}block{% else %}none{% endif %};">
         <label for="prompt">Prompt :</label>
         <textarea name="prompt" id="prompt" style="width:600px;" rows="4">{{ prompt|default('') }}</textarea>
+    </div>
+    <div id="optionsDiv" style="display: {% if need_prompt %}block{% else %}none{% endif %}; margin-top:10px;">
+        <label for="options">Options JSON (facultatif) :</label>
+        <textarea name="options" id="options" style="width:600px;" rows="2" placeholder='{"num_predict":300,"temperature":0,"top_p":0.9}'></textarea>
+        <!-- <small>Format : <code>{"clé": valeur, ...}</code></small> -->
     </div><br>
-    <input type=file name=ticket id="ticketInput" accept="image/*"><br><br>
+    <input type=file name=ticket id="ticketInput" accept="image/*"><br>
+    <label><input type="checkbox" id="preprocessImg" name="preprocessImg" value="1"> Appliquer le prétraitement d'image (contraste, N&B, etc)</label><br><br>
     <input type=submit value=Analyser id="submitBtn" disabled>
 </form>
 <div id="waitMsg" style="display:none; color:blue; font-weight:bold;">Veuillez patienter, traitement en cours...</div>
 <div id="resultDiv"></div>
 <script>
+// Pré-remplissage automatique du formulaire si paramètres dans l'URL
+window.addEventListener('DOMContentLoaded', function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('server')) {
+        document.getElementById('server').value = params.get('server');
+        document.getElementById('server').dispatchEvent(new Event('change'));
+    }
+    if (params.has('model')) {
+        // On attend un peu que la liste des modèles soit chargée si besoin
+        setTimeout(function() {
+            document.getElementById('model').value = params.get('model');
+            document.getElementById('model').dispatchEvent(new Event('change'));
+        }, 400);
+    }
+    if (params.has('prompt')) {
+        document.getElementById('prompt').value = params.get('prompt');
+    }
+    if (params.has('options')) {
+        document.getElementById('options').value = params.get('options');
+    }
+});
 function togglePrompt() {
     var select = document.getElementById('model');
     if (!select.options.length) {
         document.getElementById('promptDiv').style.display = 'none';
+        document.getElementById('optionsDiv').style.display = 'none';
         return;
     }
     var opt = select.options[select.selectedIndex];
@@ -39,8 +89,10 @@ function togglePrompt() {
         opt.textContent === opt.value
     ) {
         document.getElementById('promptDiv').style.display = 'block';
+        document.getElementById('optionsDiv').style.display = 'block';
     } else {
         document.getElementById('promptDiv').style.display = needPrompt ? 'block' : 'none';
+        document.getElementById('optionsDiv').style.display = needPrompt ? 'block' : 'none';
     }
 }
 function toggleImageRequired() {
@@ -118,6 +170,20 @@ window.onload = function() {
 };
 document.getElementById('formulaire').onsubmit = async function(e) {
     e.preventDefault();
+    // Met à jour l'URL avec les valeurs du formulaire (GET)
+    const params = new URLSearchParams();
+    params.set('server', document.getElementById('server').value);
+    params.set('model', document.getElementById('model').value);
+    params.set('prompt', document.getElementById('prompt').value);
+    params.set('options', document.getElementById('options').value);
+    if (document.getElementById('preprocessImg').checked) {
+        params.set('preprocess', '1');
+    } else {
+        params.delete('preprocess');
+    }
+    if (window.location.search !== '?' + params.toString()) {
+        window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+    }
     const server = document.getElementById('server').value;
     if (!server) {
         alert('Veuillez sélectionner un serveur.');
@@ -130,6 +196,17 @@ document.getElementById('formulaire').onsubmit = async function(e) {
     // Construction du payload côté JS (comme côté Flask)
     const model = formData.get('model');
     const prompt = formData.get('prompt') || "";
+    const optionsRaw = formData.get('options') || "";
+    let options = undefined;
+    if (optionsRaw.trim()) {
+        try {
+            options = JSON.parse(optionsRaw);
+        } catch (e) {
+            document.getElementById('waitMsg').style.display = 'none';
+            document.getElementById('resultDiv').innerHTML = '<span style="color:red">Le champ options n\'est pas un JSON valide.</span>';
+            return;
+        }
+    }
     const file = formData.get('ticket');
     // Vérifie si l'image est obligatoire pour le modèle sélectionné
     var select = document.getElementById('model');
@@ -140,6 +217,7 @@ document.getElementById('formulaire').onsubmit = async function(e) {
         return;
     }
     // Lecture du fichier image en base64
+    const preprocess = document.getElementById('preprocessImg').checked;
     const reader = new FileReader();
     reader.onload = async function() {
         const img_b64 = reader.result.split(',')[1];
@@ -147,8 +225,10 @@ document.getElementById('formulaire').onsubmit = async function(e) {
             model: model,
             prompt: prompt,
             image: img_b64,
-            server: server
+            server: server,
+            preprocess: preprocess
         };
+        if (options !== undefined) payload.options = options;
         try {
             const response = await fetch("/api_ollama", {
                 method: "POST",
@@ -171,8 +251,10 @@ document.getElementById('formulaire').onsubmit = async function(e) {
             model: model,
             prompt: prompt,
             image: "",
-            server: server
+            server: server,
+            preprocess: preprocess
         };
+        if (options !== undefined) payload.options = options;
         try {
             const response = await fetch("/api_ollama", {
                 method: "POST",

@@ -2,13 +2,29 @@
 
 Cette application Flask permet d'uploader une photo et d'envoyer un prompt via un serveur Ollama local ou distant (modèle LLM multimodal).
 
+## Sommaire
+- [Labo IA - Flask Ticket Carburant](#labo-ia---flask-ticket-carburant)
+  - [Sommaire](#sommaire)
+  - [Fonctionnalités](#fonctionnalités)
+  - [Installation](#installation)
+  - [Utilisation](#utilisation)
+  - [Configuration](#configuration)
+  - [Historique des tests](#historique-des-tests)
+  - [Dépendances](#dépendances)
+  - [Remarques](#remarques)
+  - [Auteur](#auteur)
+
 ## Fonctionnalités
 - Sélection du serveur Ollama (depuis une liste dans le script)
 - Choix du modèle
 - Zone de prompt si nécessaire
 - Upload d'image (obligatoire ou optionnel selon le modèle)
+- **Rognage/crop côté client** avant envoi (Croppr.js, mobile/desktop, workflow fluide)
 - Affichage du résultat
 - Feedback asynchrone ("Veuillez patienter...")
+- **Historique des tests** : visualisation, suppression, détails, reload, zoom image, copie, affichage des métadonnées (prétraitement, résolution...)
+- **Prévisualisation et zoom 1:1** des images uploadées ou rognées, y compris dans la liste des tickets
+- **Nommage intelligent** des fichiers rognés : nom original + _cropped + extension
 
 ## Installation
 1. Cloner ce dépôt ou copier les fichiers dans un dossier.
@@ -47,6 +63,21 @@ Cette application Flask permet d'uploader une photo et d'envoyer un prompt via u
 - Les adresses IP des serveurs Ollama sont configurées dans `app.py` (variable `OLLAMA_SERVERS`).
 - Les modèles disponibles sont listés dans `OLLAMA_MODELS`.
 
+## Historique des tests
+
+L'application conserve un historique complet de chaque test effectué (requête envoyée à Ollama) :
+
+- **Tableau interactif** listant tous les tests passés
+- **Suppression** d'un test à la volée (AJAX)
+- **Détail complet** d'un test via une fenêtre modale (prompt, options, résultat, image, métadonnées...)
+- **Zoom image** : agrandissement 100% ou ajusté, navigation fluide
+- **Copie** du résultat JSON ou du prompt en un clic
+- **Reload** : relancer un test à partir de l'historique
+- **Affichage des métadonnées image** : résolution, prétraitement appliqué ou non
+- **Persistance** : l'historique est stocké en base PostgreSQL (table `model_tests`)
+
+Accès : [http://localhost:5000/history](http://localhost:5000/history)
+
 ## Dépendances
 - Flask
 - requests
@@ -57,5 +88,5 @@ Cette application Flask permet d'uploader une photo et d'envoyer un prompt via u
 - Projet expérimental pour laboratoire IA local.
 
 ## Auteur
-Nicolas ELIE
+Nicolas ELIE et 
 Github Copilot
