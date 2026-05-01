@@ -487,16 +487,26 @@ def api_ticket_image(ticket_id):
         row = cur.fetchone()
         cur.close()
         conn.close()
-        if not row or not row[0]:
-            return jsonify({'success': False, 'error': 'Image non trouvée'})
+        if not row or row[0] is None:
+            return jsonify({'success': False, 'error': 'Image non trouvée'}), 404
+        raw_image = row[0]
+        # Conversion explicite pour tous les types binaires
+        if isinstance(raw_image, bytes):
+            img_bytes = raw_image
+        elif isinstance(raw_image, bytearray):
+            img_bytes = bytes(raw_image)
+        elif isinstance(raw_image, memoryview):
+            img_bytes = raw_image.tobytes()
+        else:
+            return jsonify({'success': False, 'error': 'Image invalide'}), 404
+        if not img_bytes:
+            return jsonify({'success': False, 'error': 'Image vide'}), 404
         import base64
-        img_bytes = row[0]
         b64 = base64.b64encode(img_bytes).decode('utf-8')
         url = f'data:image/jpeg;base64,{b64}'
         return jsonify({'success': True, 'url': url})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
-
 
 # Route pour supprimer un ticket
 @app.route('/delete_ticket', methods=['POST'])
@@ -614,8 +624,8 @@ def delete_ticket():
         # Affichage dynamique du statut
         if status == 'en attente':
             status_html = "<span style='color:orange;font-weight:bold;'>🕓 en attente</span>"
-        elif status == 'en cours':
-            status_html = "<span style='color:blue;font-weight:bold;'>⏳ en cours</span>"
+            if not row or not row[0] or not isinstance(row[0], (bytes, bytearray)):
+                return jsonify({'success': False, 'error': 'Image non trouvée ou vide'})
         elif status == 'traité':
             status_html = "<span style='color:green;font-weight:bold;'>✔ traité</span>"
         elif status == 'erreur':
@@ -800,7 +810,6 @@ def api_list_models():
     except Exception as e:
         return jsonify([]), 500
 
-
 # Fonction pour reconstituer le texte à partir des lignes JSON
 import json as _json
 import time
@@ -959,9 +968,14 @@ def api_ollama():
 @app.route('/upload_ticket', methods=['GET', 'POST'])
 def upload_ticket():
     types = [
-        ("Carburant", "carbu"),
-        ("Supermarché", "superm"),
-        ("Pain", "pain"),
+        ("Carburant", "Carburant"),
+        ("Supermarché", "Supermarché"),
+        ("Pain", "Pain"),
+        ('Loisirs', 'Loisirs'),
+        ('Divers', 'Divers'),
+        ('U Express', 'U Express'),
+        ('Nico midi', 'Nico midi'),
+        ('Audrey midi', 'Audrey midi'),
     ]
     if request.method == 'GET':
         # Formulaire HTML mobile-friendly pour upload avec Croppr.js
@@ -1166,44 +1180,8 @@ def process_ticket():
     return redirect(url_for('check_tickets'))
 
 
-# Route pour servir l'image binaire d'un ticket
-@app.route('/pictbyid/<int:ticket_id>')
-def pictbyid(ticket_id):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT image, filename FROM tickets WHERE id = %s", (ticket_id,))
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if row is None:
-            return "Not Found", 404
-        image_bytes, filename = row
-        if not isinstance(image_bytes, (bytes, bytearray)) or not image_bytes:
-            return "Image non trouvée ou vide", 404
-        ext = os.path.splitext(filename)[1].lower()
-        if ext in ['.jpg', '.jpeg']:
-            mimetype = 'image/jpeg'
-        elif ext == '.png':
-            mimetype = 'image/png'
-        elif ext == '.webp':
-            mimetype = 'image/webp'
-        else:
-            mimetype = 'application/octet-stream'
-
-        def generate():
-            chunk_size = 65536  # 64 Ko
-            for i in range(0, len(image_bytes), chunk_size):
-                yield image_bytes[i:i+chunk_size]
-
-        return Response(generate(), mimetype=mimetype, headers={
-            'Content-Disposition': f'inline; filename="{filename}"',
-            'Cache-Control': 'public, max-age=604800, immutable'
-        })
-    except Exception as e:
-        return f"Erreur serveur : {str(e)}", 500
-
 # Route d'erreur d'upload (doit être au niveau global)
+
 @app.route('/upload_error')
 def upload_error():
     from flask import request as flask_request
@@ -1232,5 +1210,58 @@ def upload_error():
     </body></html>
     """
 
+    
+# Route pour servir l'image binaire d'un ticket (accès direct IA/externe)
+@app.route('/pictbyid/<int:ticket_id>')
+def pictbyid(ticket_id):
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT image, filename FROM tickets WHERE id = %s', (ticket_id,))
+        row = cur.fetchone()
+        if not row:
+            return "Image non trouvée", 404
+
+        raw_image, filename = row
+        if raw_image is None:
+            return "Image non trouvée", 404
+
+        # psycopg2 peut renvoyer bytea en memoryview : conversion explicite obligatoire.
+        if isinstance(raw_image, bytes):
+            image_bytes = raw_image
+        elif isinstance(raw_image, bytearray):
+            image_bytes = bytes(raw_image)
+        elif isinstance(raw_image, memoryview):
+            image_bytes = raw_image.tobytes()
+        else:
+            return "Image invalide", 404
+
+        if not image_bytes:
+            return "Image vide", 404
+
+        import mimetypes
+        fallback_name = f"ticket_{ticket_id}.bin"
+        served_name = filename if filename else fallback_name
+        mimetype = mimetypes.guess_type(served_name)[0] or 'application/octet-stream'
+
+        def generate():
+            chunk_size = 65536
+            for i in range(0, len(image_bytes), chunk_size):
+                yield image_bytes[i:i+chunk_size]
+
+        return Response(generate(), mimetype=mimetype, headers={
+            'Content-Disposition': f'inline; filename="{served_name}"',
+            'Cache-Control': 'public, max-age=604800, immutable'
+        })
+    except Exception as e:
+        return f"Erreur serveur : {str(e)}", 500
+    finally:
+        if cur is not None:
+            cur.close()
+        if conn is not None:
+            conn.close()
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, host='0.0.0.0')
