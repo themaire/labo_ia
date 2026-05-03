@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion — IA Tickets</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #fff;
+      border-radius: 1em;
+      box-shadow: 0 4px 24px #0002;
+      padding: 2.5em 2em;
+      width: 100%;
+      max-width: 380px;
+    }
+    h1 {
+      font-size: 1.5em;
+      margin: 0 0 1.5em;
+      text-align: center;
+      color: #1976d2;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.3em;
+      font-weight: bold;
+      font-size: 0.95em;
+      color: #333;
+    }
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.75em 1em;
+      border: 1px solid #ccc;
+      border-radius: 0.5em;
+      font-size: 1em;
+      margin-bottom: 1.2em;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #1976d2;
+    }
+    .btn-login {
+      width: 100%;
+      padding: 0.85em;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      font-size: 1.1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-login:hover { background: #125ea2; }
+    .error {
+      background: #fdecea;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+      border-radius: 0.5em;
+      padding: 0.7em 1em;
+      margin-bottom: 1.2em;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔒 Connexion</h1>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label for="username">Identifiant</label>
+      <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+      <label for="password">Mot de passe</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+      <button class="btn-login" type="submit">Se connecter</button>
+    </form>
+  </div>
+  <script>
+    // Logs de débogage pour la console Chrome
+    document.querySelector('form').addEventListener('submit', function(e) {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      console.log('[LOGIN DEBUG] ========== SOUMISSION FORMULAIRE ==========');
+      console.log('[LOGIN DEBUG] Username:', username);
+      console.log('[LOGIN DEBUG] Mot de passe fourni:', password ? 'Oui (' + password.length + ' caractères)' : 'Non');
+      console.log('[LOGIN DEBUG] Action:', this.action);
+      console.log('[LOGIN DEBUG] Method:', this.method);
+      console.log('[LOGIN DEBUG] =======================================');
+      // Laisser le formulaire se soumettre normalement
+    });
+  </script>
+</body>
+</html>

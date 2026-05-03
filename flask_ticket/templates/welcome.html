@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bienvenue — IA Tickets</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #fff;
+      border-radius: 1em;
+      box-shadow: 0 4px 24px #0002;
+      padding: 2.5em 2em;
+      width: 100%;
+      max-width: 450px;
+    }
+    h1 {
+      font-size: 1.6em;
+      margin: 0 0 0.5em;
+      text-align: center;
+      color: #1976d2;
+    }
+    .intro {
+      text-align: center;
+      color: #555;
+      margin-bottom: 2em;
+      line-height: 1.5;
+      font-size: 0.95em;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.3em;
+      font-weight: bold;
+      font-size: 0.95em;
+      color: #333;
+    }
+    label.optional {
+      font-weight: normal;
+      color: #777;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.75em 1em;
+      border: 1px solid #ccc;
+      border-radius: 0.5em;
+      font-size: 1em;
+      margin-bottom: 1.2em;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #1976d2;
+    }
+    .btn-primary {
+      width: 100%;
+      padding: 0.85em;
+      background: #388e3c;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      font-size: 1.1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #2e7d32; }
+    .error {
+      background: #fdecea;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+      border-radius: 0.5em;
+      padding: 0.7em 1em;
+      margin-bottom: 1.2em;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>👋 Bienvenue !</h1>
+    <p class="intro">
+      Aucun utilisateur n'est encore configuré.<br>
+      Créez votre premier compte administrateur pour commencer.
+    </p>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/welcome">
+      <label for="username">Identifiant</label>
+      <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+      
+      <label for="email" class="optional">Email <span style="color:#999">(optionnel)</span></label>
+      <input type="email" id="email" name="email" autocomplete="email">
+      
+      <label for="password">Mot de passe</label>
+      <input type="password" id="password" name="password" autocomplete="new-password" required>
+      
+      <label for="password_confirm">Confirmer le mot de passe</label>
+      <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" required>
+      
+      <button class="btn-primary" type="submit">Créer mon compte</button>
+    </form>
+  </div>
+</body>
+</html>
