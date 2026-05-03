@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestion des utilisateurs — IA Tickets</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      background: #f0f4f8;
+      padding: 2em 1em;
+      margin: 0;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.8em;
+      margin: 0 0 1em;
+      color: #1976d2;
+    }
+    .nav-link {
+      display: inline-block;
+      margin-bottom: 1.5em;
+      color: #1976d2;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .nav-link:hover { text-decoration: underline; }
+    .card {
+      background: #fff;
+      border-radius: 1em;
+      box-shadow: 0 4px 24px #0002;
+      padding: 2em;
+      margin-bottom: 2em;
+    }
+    h2 {
+      font-size: 1.3em;
+      margin-top: 0;
+      margin-bottom: 1em;
+      color: #333;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1em;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.75em 1em;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background: #f5f5f5;
+      font-weight: bold;
+      color: #555;
+    }
+    tr:hover { background: #fafafa; }
+    .badge {
+      display: inline-block;
+      padding: 0.2em 0.6em;
+      border-radius: 0.3em;
+      font-size: 0.85em;
+      font-weight: bold;
+    }
+    .badge-active { background: #e8f5e9; color: #2e7d32; }
+    .badge-inactive { background: #ffebee; color: #c62828; }
+    label {
+      display: block;
+      margin-bottom: 0.3em;
+      font-weight: bold;
+      font-size: 0.95em;
+      color: #333;
+    }
+    label.optional {
+      font-weight: normal;
+      color: #777;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.75em 1em;
+      border: 1px solid #ccc;
+      border-radius: 0.5em;
+      font-size: 1em;
+      margin-bottom: 1.2em;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #1976d2;
+    }
+    .btn-primary {
+      padding: 0.75em 1.5em;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #125ea2; }
+    .error {
+      background: #fdecea;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+      border-radius: 0.5em;
+      padding: 0.7em 1em;
+      margin-bottom: 1.2em;
+      font-size: 0.95em;
+    }
+    .success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+      border-radius: 0.5em;
+      padding: 0.7em 1em;
+      margin-bottom: 1.2em;
+      font-size: 0.95em;
+    }
+    .empty-state {
+      text-align: center;
+      color: #999;
+      padding: 2em 1em;
+      font-style: italic;
+    }
+    .btn-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
+      padding: 0.75em 1.5em;
+      background: #388e3c;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 1em;
+    }
+    .btn-add:hover { background: #2e7d32; }
+    tbody tr {
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    tbody tr:hover {
+      background: #e3f2fd !important;
+    }
+    
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      animation: fadeIn 0.2s;
+    }
+    .modal.show {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background: #fff;
+      border-radius: 1em;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      padding: 2em;
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: slideIn 0.3s;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5em;
+    }
+    .modal-title {
+      font-size: 1.4em;
+      color: #1976d2;
+      margin: 0;
+    }
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 1.5em;
+      color: #999;
+      cursor: pointer;
+      padding: 0;
+      width: 1.5em;
+      height: 1.5em;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+    .btn-close:hover { color: #333; }
+    .btn-danger {
+      background: #d32f2f;
+      color: #fff;
+      border: none;
+      border-radius: 0.5em;
+      padding: 0.75em 1.5em;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-danger:hover { background: #b71c1c; }
+    .form-group {
+      margin-bottom: 1.2em;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideIn {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="nav-link">← Retour à l'accueil</a>
+    <h1>⚙️ Paramètres</h1>
+
+    <div style="display: flex; gap: 1em; margin-bottom: 2em; flex-wrap: wrap;">
+      <a href="/settings" style="padding: 0.75em 1.5em; background: #1976d2; color: #fff; text-decoration: none; border-radius: 0.5em; font-weight: bold; display: inline-block;">👥 Utilisateurs</a>
+      <a href="/settings/servers" style="padding: 0.75em 1.5em; background: #555; color: #fff; text-decoration: none; border-radius: 0.5em; font-weight: bold; display: inline-block;">🖥️ Serveurs Ollama</a>
+      <a href="/settings/models" style="padding: 0.75em 1.5em; background: #555; color: #fff; text-decoration: none; border-radius: 0.5em; font-weight: bold; display: inline-block;">🤖 Modèles Ollama</a>
+    </div>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+    {% if success_msg %}
+      <div class="success">{{ success_msg }}</div>
+    {% endif %}
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+        <h2 style="margin: 0;">Utilisateurs existants</h2>
+        <button class="btn-add" onclick="openCreateModal()">➕ Nouvel utilisateur</button>
+      </div>
+      
+      {% if users %}
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Identifiant</th>
+              <th>Email</th>
+              <th>Statut</th>
+              <th>Créé le</th>
+              <th>Dernière connexion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+            <tr onclick="openEditModal({{ user.id }}, '{{ user.username }}', '{{ user.email or '' }}', {{ 'true' if user.is_active else 'false' }})" title="Cliquer pour éditer">
+              <td>{{ user.id }}</td>
+              <td><strong>{{ user.username }}</strong></td>
+              <td>{{ user.email or '—' }}</td>
+              <td>
+                {% if user.is_active %}
+                  <span class="badge badge-active">Actif</span>
+                {% else %}
+                  <span class="badge badge-inactive">Inactif</span>
+                {% endif %}
+              </td>
+              <td>{{ user.created_at.strftime('%d/%m/%Y %H:%M') if user.created_at else '—' }}</td>
+              <td>{{ user.last_login.strftime('%d/%m/%Y %H:%M') if user.last_login else 'Jamais' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty-state">Aucun utilisateur trouvé.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Modale de création -->
+  <div id="createModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ Créer un utilisateur</h3>
+        <button class="btn-close" onclick="closeCreateModal()">&times;</button>
+      </div>
+      <form method="post" action="/settings">
+        <input type="hidden" name="action" value="create">
+        <div class="form-group">
+          <label for="create_username">Identifiant</label>
+          <input type="text" id="create_username" name="username" required autofocus>
+        </div>
+        
+        <div class="form-group">
+          <label for="create_email" class="optional">Email <span style="color:#999">(optionnel)</span></label>
+          <input type="email" id="create_email" name="email">
+        </div>
+        
+        <div class="form-group">
+          <label for="create_password">Mot de passe</label>
+          <input type="password" id="create_password" name="password" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="create_password_confirm">Confirmer le mot de passe</label>
+          <input type="password" id="create_password_confirm" name="password_confirm" required>
+        </div>
+        
+        <button class="btn-primary" type="submit">Créer</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modale d'édition -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">✏️ Modifier un utilisateur</h3>
+        <button class="btn-close" onclick="closeEditModal()">&times;</button>
+      </div>
+      <form method="post" action="/settings">
+        <input type="hidden" name="action" value="edit">
+        <input type="hidden" id="edit_user_id" name="user_id" value="">
+        
+        <div class="form-group">
+          <label for="edit_username">Identifiant</label>
+          <input type="text" id="edit_username" name="username" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="edit_email" class="optional">Email <span style="color:#999">(optionnel)</span></label>
+          <input type="email" id="edit_email" name="email">
+        </div>
+        
+        <div class="form-group">
+          <label for="edit_password">Nouveau mot de passe <span style="color:#999">(laisser vide pour ne pas changer)</span></label>
+          <input type="password" id="edit_password" name="password">
+        </div>
+        
+        <div class="form-group">
+          <label for="edit_password_confirm">Confirmer le mot de passe</label>
+          <input type="password" id="edit_password_confirm" name="password_confirm">
+        </div>
+        
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="edit_is_active" name="is_active" value="1">
+          <label for="edit_is_active" style="margin: 0;">Utilisateur actif</label>
+        </div>
+        
+        <div style="display: flex; gap: 1em; justify-content: space-between;">
+          <button class="btn-primary" type="submit">Enregistrer</button>
+          <button class="btn-danger" type="button" onclick="deleteUser()">🗑️ Supprimer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Gestion de la modale de création
+    function openCreateModal() {
+      document.getElementById('createModal').classList.add('show');
+      document.getElementById('create_username').focus();
+    }
+    
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('show');
+      document.getElementById('createModal').querySelector('form').reset();
+    }
+    
+    // Gestion de la modale d'édition
+    function openEditModal(userId, username, email, isActive) {
+      document.getElementById('edit_user_id').value = userId;
+      document.getElementById('edit_username').value = username;
+      document.getElementById('edit_email').value = email;
+      document.getElementById('edit_is_active').checked = isActive;
+      document.getElementById('edit_password').value = '';
+      document.getElementById('edit_password_confirm').value = '';
+      document.getElementById('editModal').classList.add('show');
+    }
+    
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('show');
+      document.getElementById('editModal').querySelector('form').reset();
+    }
+    
+    // Suppression d'un utilisateur
+    function deleteUser() {
+      const userId = document.getElementById('edit_user_id').value;
+      const username = document.getElementById('edit_username').value;
+      if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur '${username}' (ID: ${userId}) ?\n\nCette action est irréversible.`)) {
+        return;
+      }
+      // Créer un formulaire temporaire pour la suppression
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/settings';
+      const actionInput = document.createElement('input');
+      actionInput.type = 'hidden';
+      actionInput.name = 'action';
+      actionInput.value = 'delete';
+      const userIdInput = document.createElement('input');
+      userIdInput.type = 'hidden';
+      userIdInput.name = 'user_id';
+      userIdInput.value = userId;
+      form.appendChild(actionInput);
+      form.appendChild(userIdInput);
+      document.body.appendChild(form);
+      form.submit();
+    }
+    
+    // Fermeture au clic en dehors de la modale
+    window.onclick = function(event) {
+      const createModal = document.getElementById('createModal');
+      const editModal = document.getElementById('editModal');
+      if (event.target === createModal) {
+        closeCreateModal();
+      } else if (event.target === editModal) {
+        closeEditModal();
+      }
+    }
+    
+    // Fermeture avec Échap
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') {
+        closeCreateModal();
+        closeEditModal();
+      }
+    });
+  </script>
+</body>
+</html>

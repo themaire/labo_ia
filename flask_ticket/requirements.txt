@@ -4,3 +4,5 @@ dotenv
 psycopg2-binary
 numpy
 opencv-python
+bcrypt
+PyJWT
