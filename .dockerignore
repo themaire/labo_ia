@@ -1,0 +1,31 @@
+# ── Version control ──────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── Python artefacts ─────────────────────────────────────────────────────────
+**/__pycache__
+**/*.py[cod]
+**/*.pyo
+.venv
+venv
+*.egg-info
+dist
+build
+
+# ── Local environment ────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── IDE / editor ─────────────────────────────────────────────────────────────
+.vscode
+.idea
+*.code-workspace
+
+# ── Uploads (mounted as a volume at runtime) ─────────────────────────────────
+uploads/
+
+# ── Documentation / misc ─────────────────────────────────────────────────────
+README.md
+*.sql
+*.json
